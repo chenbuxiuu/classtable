@@ -9,6 +9,12 @@
             android:id="@+id/notice"
             android:title="课程通知" />
         <item
+            android:id="@+id/upload"
+            android:title="上传文件"/>
+        <item
+            android:id="@+id/download"
+            android:title="下载资源" />
+        <item
             android:id="@+id/about"
             android:title="关于" />
     </group>

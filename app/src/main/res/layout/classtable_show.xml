@@ -230,7 +230,6 @@
                         android:layout_marginTop="2dp"
                         android:background="@drawable/kb0"
                         android:textColor="#2e94da"
-                        android:text="lesson11"
                         android:textSize="12sp" />
 
                     <Button
@@ -240,7 +239,6 @@
                         android:layout_marginTop="2dp"
                         android:background="@drawable/kb0"
                         android:textColor="#2e94da"
-                        android:text="lesson21"
                         android:textSize="12sp" />
 
                     <Button
@@ -663,7 +661,17 @@
         </LinearLayout>
     </ScrollView>
 
-
+    <Button
+        android:id="@+id/week_set"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentRight="true"
+        android:layout_marginBottom="24dp"
+        android:layout_marginRight="24dp"
+        android:text="\?"
+        android:textColor="#2e94da"
+        android:background="#00000000"/>
 
 
 

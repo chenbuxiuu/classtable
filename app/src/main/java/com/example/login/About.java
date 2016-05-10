@@ -99,6 +99,18 @@ public class About extends AppCompatActivity
             Intent intent=new Intent(About.this,CourseNotice.class);
             startActivity(intent);
             finish();
+        }else if(id==R.id.upload){
+            Toast.makeText(getApplicationContext(), "上传作业",
+                    Toast.LENGTH_SHORT).show();
+            Intent intent=new Intent(About.this,UploadActivity.class);
+            startActivity(intent);
+            finish();
+        }else if(id==R.id.download){
+            Toast.makeText(getApplicationContext(), "下载资源",
+                    Toast.LENGTH_SHORT).show();
+            Intent intent=new Intent(About.this,DownloadActivity.class);
+            startActivity(intent);
+            finish();
         }else if (id == R.id.about) {
             Toast.makeText(getApplicationContext(), "关于",
                     Toast.LENGTH_SHORT).show();

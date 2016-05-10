@@ -1,16 +1,26 @@
 package com.example.login;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.List;
+
 import android.app.Activity;
 import android.app.Dialog;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Looper;
 import android.text.Editable;
-import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -59,18 +69,21 @@ public class LoginActivity extends Activity implements OnClickListener,
     private CheckBox remPwd;
     private CheckBox autoLogin;
     private SharedPreferences sp;
-    private static String Checkbox_info="checkbox";
-    private static String rempwd_info="rem_pwd";
-    private static String autoLogin_info="autoLogin";
+    private static String app_info = "app_info";
+    private static String rempwd_info = "rem_pwd";
+    private static String autoLogin_info = "autoLogin";
+    final Data data=(Data)getApplication();
+    private String WEBURL=data.WEBURL;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             //透明状态栏
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
         }
         setContentView(R.layout.activity_login);
+
         initView();
         setListener();
         mLoginLinearLayout.startAnimation(mTranslate); // Y轴水平移动
@@ -79,7 +92,7 @@ public class LoginActivity extends Activity implements OnClickListener,
         mUsers = Utils.getUserList(LoginActivity.this);
 
         if (mUsers.size() > 0) {
-			/* 将列表中的第一个user显示在编辑框 */
+            /* 将列表中的第一个user显示在编辑框 */
             mIdEditText.setText(mUsers.get(0).getId());
             mPwdEditText.setText(mUsers.get(0).getPwd());
         }
@@ -93,14 +106,71 @@ public class LoginActivity extends Activity implements OnClickListener,
         mUserIdListView.setAdapter(mAdapter);
         ExitApplication.getInstance().addActivity(this);
 
-
-        Log.i("sp",String.valueOf(sp.getBoolean(autoLogin_info,false)));
-        if(sp.getBoolean(rempwd_info,false)){
-            if(sp.getBoolean(autoLogin_info,false)){
-                Log.i("sp","true");
-                Intent intent=new Intent(LoginActivity.this,MainActivity.class);
-                startActivity(intent);
+        //是否自动登录并且验证账号密码
+        if (sp.getBoolean(rempwd_info, false)) {
+            if (sp.getBoolean(autoLogin_info, false)) {
+                doWeb(mUsers.get(0).getId(), mUsers.get(0).getPwd());
             }
+        }
+    }
+
+    /*登录*/
+    public void doWeb(final String user, final String pwd) {
+        showLoginingDlg();
+        final Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+
+                String strURL = WEBURL+"stulogin?LoginName=" +
+                        user + "&" + "LoginPassWord=" + pwd+ "&" + "Request=ClassTable";
+                URL url = null;
+                try {
+                    url = new URL(strURL);
+                    HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
+                    httpURLConnection.setConnectTimeout(8000);
+                    httpURLConnection.setRequestMethod("GET");
+                    httpURLConnection.setReadTimeout(5000);
+                    InputStreamReader in = new InputStreamReader(httpURLConnection.getInputStream());
+                    BufferedReader bufferedReader = new BufferedReader(in);
+                    ArrayList<String> temp_result =new ArrayList<String>();
+                    String readLine = null;
+                    while ((readLine = bufferedReader.readLine()) != null) {
+                            temp_result.add(readLine);
+                    }
+                    in.close();
+                    httpURLConnection.disconnect();
+                    final ArrayList<String> result=temp_result;
+
+                    LoginActivity.this.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+
+                            if (result.get(0).equals("success")) {
+                                try {
+                                    Utils.saveClassTable(user,result);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                                Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                                startActivity(intent);
+                                finish();
+                            } else {
+                                Toast.makeText(LoginActivity.this, "登录失败", Toast.LENGTH_SHORT).show();
+                                closeLoginingDlg();
+                            }
+                        }
+                    });
+                }catch (Exception e) {
+                    closeLoginingDlg();
+                    e.printStackTrace();
+                }
+            }
+        });
+        try {
+            thread.start();
+            thread.join();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -135,6 +205,9 @@ public class LoginActivity extends Activity implements OnClickListener,
                         mPwdString = "";
                         mIdEditText.setText(mIdString);
                         mPwdEditText.setText(mPwdString);
+                        if (mUsers.size() == 1) {
+                            mPop.dismiss();
+                        }
                     }
                     mUsers.remove(getItem(position));
                     mAdapter.notifyDataSetChanged(); // 更新ListView
@@ -187,21 +260,19 @@ public class LoginActivity extends Activity implements OnClickListener,
         mLoginMoreUserView = (ImageView) findViewById(R.id.login_more_user);
         mLoginLinearLayout = (LinearLayout) findViewById(R.id.login_linearLayout);
         mUserIdLinearLayout = (LinearLayout) findViewById(R.id.userId_LinearLayout);
-        remPwd=(CheckBox)findViewById(R.id.rem_pwd);
-        autoLogin=(CheckBox)findViewById(R.id.auto_login);
-        sp=this.getSharedPreferences(Checkbox_info,Context.MODE_APPEND);
+        remPwd = (CheckBox) findViewById(R.id.rem_pwd);
+        autoLogin = (CheckBox) findViewById(R.id.auto_login);
+        sp = this.getSharedPreferences(app_info, Context.MODE_APPEND);
         autoLogin.setChecked(true);
         remPwd.setChecked(true);
-        if(sp.getBoolean(rempwd_info,false)){
+        if (sp.getBoolean(rempwd_info, false)) {
             remPwd.setChecked(true);
-        }
-        else {
+        } else {
             remPwd.setChecked(false);
         }
-        if(sp.getBoolean(autoLogin_info,false)){
+        if (sp.getBoolean(autoLogin_info, false)) {
             autoLogin.setChecked(true);
-        }
-        else {
+        } else {
             autoLogin.setChecked(false);
         }
         mTranslate = AnimationUtils.loadAnimation(this, R.anim.my_translate); // 初始化动画对象
@@ -243,7 +314,7 @@ public class LoginActivity extends Activity implements OnClickListener,
                 R.dimen.loginingdlg_top_margin); // 上沿20dp
 
         params.y = (-(cyScreen - height) / 2) + topMargin; // -199
-		/* 对话框默认位置在屏幕中心,所以x,y表示此控件到"屏幕中心"的偏移量 */
+        /* 对话框默认位置在屏幕中心,所以x,y表示此控件到"屏幕中心"的偏移量 */
 
         params.width = cxScreen;
         params.height = height;
@@ -255,7 +326,7 @@ public class LoginActivity extends Activity implements OnClickListener,
     /* 显示正在登录对话框 */
     private void showLoginingDlg() {
         if (mLoginingDlg != null)
-                mLoginingDlg.show();
+            mLoginingDlg.show();
 
     }
 
@@ -279,59 +350,45 @@ public class LoginActivity extends Activity implements OnClickListener,
                             .show();
                 } else {// 账号和密码都不为空时
                     showLoginingDlg();
+
                     boolean mIsSave = true;
-                    if (autoLogin.isChecked()){
-                        Log.i("AuotoLog","true");
+                    if (autoLogin.isChecked()) {
                         saveCheckboxInfo(autoLogin_info, true);
-                    }
-                    else {
-                        Log.i("AuotoLog","false");
-                        saveCheckboxInfo(autoLogin_info,false);
+                    } else {
+                        saveCheckboxInfo(autoLogin_info, false);
                     }
                     try {
                         Log.i(TAG, "保存用户列表");
-                        for (int i=0;i<mUsers.size();i++) { // 判断本地文档是否有此ID用户
-                            User user=mUsers.get(i);
+                        for (int i = 0; i < mUsers.size(); i++) { // 判断本地文档是否有此ID用户
+                            User user = mUsers.get(i);
                             if (user.getId().equals(mIdString)) {
-                                if(user.getPwd().equals("")){
+                                if (user.getPwd().equals("")) {
                                     mUsers.remove(i);
-                                    mIsSave=true;
+                                    mIsSave = true;
                                     break;
-                                }
-                                else {
+                                } else {
                                     mIsSave = false;
                                     break;
                                 }
-
                             }
                         }
                         if (mIsSave) { // 将新用户加入users
-//                            User user = new User(mIdString, mPwdString);
-//                            mUsers.add(0,user);
                             User user;
-                            if(remPwd.isChecked()){
-                                user=new User(mIdString, mPwdString);
+                            if (remPwd.isChecked()) {
+                                user = new User(mIdString, mPwdString);
                                 mUsers.add(0, user);
-                                saveCheckboxInfo(rempwd_info,true);
-                            }
-                            else {
-                                user=new User(mIdString, "");
+                                saveCheckboxInfo(rempwd_info, true);
+                            } else {
+                                user = new User(mIdString, "");
                                 mUsers.add(0, user);
-                                saveCheckboxInfo(rempwd_info,false);
+                                saveCheckboxInfo(rempwd_info, false);
                             }
                         }
-                        //账号密码验证正确登录
-                        if(true){
-                            sendUser("user",mIdString);
-                            Intent intent=new Intent(LoginActivity.this,MainActivity.class);
-                            startActivity(intent);
-                        }
+
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
-                    closeLoginingDlg();// 关闭对话框
-                    Toast.makeText(this, "登录成功", Toast.LENGTH_SHORT).show();
-                    finish();
+                    doWeb(mIdString, mPwdString);
                 }
                 break;
             case R.id.login_more_user: // 当点击下拉栏
@@ -355,8 +412,8 @@ public class LoginActivity extends Activity implements OnClickListener,
                             long id) {
         mIdEditText.setText(mUsers.get(position).getId());
         mPwdEditText.setText(mUsers.get(position).getPwd());
-        mUsers.add(0,mUsers.get(position));
-        mUsers.remove(position+1);
+        mUsers.add(0, mUsers.get(position));
+        mUsers.remove(position + 1);
         mPop.dismiss();
     }
 
@@ -377,9 +434,10 @@ public class LoginActivity extends Activity implements OnClickListener,
             e.printStackTrace();
         }
     }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if(keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_DOWN){
+        if (keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_DOWN) {
 //            Intent home = new Intent(Intent.ACTION_MAIN);
 //            home.addCategory(Intent.CATEGORY_HOME);
 //            startActivity(home);
@@ -389,19 +447,11 @@ public class LoginActivity extends Activity implements OnClickListener,
         return super.onKeyDown(keyCode, event);
     }
 
-    public void saveCheckboxInfo(String key,boolean value){
-        SharedPreferences.Editor editor=sp.edit();
+    public void saveCheckboxInfo(String key, boolean value) {
+        SharedPreferences.Editor editor = sp.edit();
         editor.remove(key);
-        editor.putBoolean(key,value);
+        editor.putBoolean(key, value);
         editor.commit();
     }
-
-    public void sendUser(String key,String value){
-        SharedPreferences.Editor editor=sp.edit();
-        editor.remove(key);
-        editor.putString(key, value);
-        editor.commit();
-    }
-
 }
 

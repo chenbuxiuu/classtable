@@ -21,25 +21,38 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.TextView;
+import android.widget.Spinner;
 import android.widget.Toast;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 
-public class CourseNotice extends AppCompatActivity
+public class DownloadActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
     private SharedPreferences sp;
     private static String Checkbox_info = "checkbox";
     private static String autoLogin_info = "autoLogin";
-    private TextView notice_textView;
-    private Button notice_update_bt;
-    final Data data=(Data)getApplication();
-    private String WEBURL=data.WEBURL;
+    final Data data = (Data) getApplication();
+    private String WEBURL = data.WEBURL;
+    private Spinner t_spinner;
+    private Spinner d_spinner;
+    private Button download_bt;
+    private Button update_res_bt;
+    private String teacherName = "";
+    private String resName="";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,17 +61,14 @@ public class CourseNotice extends AppCompatActivity
             //透明状态栏
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
         }
-        setContentView(R.layout.activity_course_notice);
-        notice_textView = (TextView) findViewById(R.id.notice_textView);
-        notice_update_bt = (Button) findViewById(R.id.notice_update_bt);
-        notice_update_bt.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                updateNotice();
-            }
-        });
+        setContentView(R.layout.activity_download);
 
-        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.coursenotice_layout);
+        intin_t_Spinner();
+        init_update_res_bt();
+        init_down_bt();
+
+
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.download_layout);
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
                 this, drawer, null, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
         drawer.setDrawerListener(toggle);
@@ -69,13 +79,74 @@ public class CourseNotice extends AppCompatActivity
 
         setTranslucentForDrawerLayout(this, drawer);
         sp = this.getSharedPreferences(Checkbox_info, Context.MODE_APPEND);
-        showNotice();
         ExitApplication.getInstance().addActivity(this);
+    }
+
+    public void init_update_res_bt(){
+        update_res_bt=(Button)findViewById(R.id.update_res_bt);
+        update_res_bt.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showResList(teacherName);
+            }
+        });
+    }
+
+    public void init_down_bt(){
+        download_bt=(Button)findViewById(R.id.download_bt);
+        download_bt.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Toast.makeText(getApplicationContext(),"开始下载",Toast.LENGTH_SHORT).show();
+                Toast.makeText(getApplicationContext(),"下载文件存于/sdcard/bysjRes",Toast.LENGTH_SHORT).show();
+                downRes(teacherName,resName);
+            }
+        });
+    }
+
+    public void intin_t_Spinner() {
+        t_spinner = (Spinner) findViewById(R.id.teacher_spinner_d);
+        String[] arr = getTeacherList(Utils.getUserList(DownloadActivity.this).get(0).getId());
+        ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, arr);
+        t_spinner.setAdapter(arrayAdapter);
+        t_spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+//                Toast.makeText(getApplicationContext(),
+//                        t_spinner.getItemAtPosition(position).toString(), Toast.LENGTH_SHORT).show();
+                teacherName = t_spinner.getItemAtPosition(position).toString();
+                showResList(teacherName);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+
+            }
+        });
+    }
+
+    public void inint_d_Spinner(String[] arr){
+        d_spinner = (Spinner) findViewById(R.id.res_spinner);
+        ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, arr);
+        d_spinner.setAdapter(arrayAdapter);
+        d_spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+//                Toast.makeText(getApplicationContext(),
+//                        d_spinner.getItemAtPosition(position).toString(), Toast.LENGTH_SHORT).show();
+                resName = d_spinner.getItemAtPosition(position).toString();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+
+            }
+        });
     }
 
     @Override
     public void onBackPressed() {
-        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.coursenotice_layout);
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.download_layout);
         if (drawer.isDrawerOpen(GravityCompat.START)) {
             drawer.closeDrawer(GravityCompat.START);
         } else {
@@ -114,28 +185,28 @@ public class CourseNotice extends AppCompatActivity
         if (id == R.id.classtable) {
             Toast.makeText(getApplicationContext(), "课程表",
                     Toast.LENGTH_SHORT).show();
-            Intent intent = new Intent(CourseNotice.this, MainActivity.class);
+            Intent intent = new Intent(DownloadActivity.this, MainActivity.class);
             startActivity(intent);
             finish();
         } else if (id == R.id.notice) {
             Toast.makeText(getApplicationContext(), "课程通知",
                     Toast.LENGTH_SHORT).show();
-        } else if(id==R.id.upload){
+            Intent intent = new Intent(DownloadActivity.this, CourseNotice.class);
+            startActivity(intent);
+            finish();
+        } else if (id == R.id.upload) {
             Toast.makeText(getApplicationContext(), "上传作业",
                     Toast.LENGTH_SHORT).show();
-            Intent intent=new Intent(CourseNotice.this,UploadActivity.class);
+            Intent intent = new Intent(DownloadActivity.this, UploadActivity.class);
             startActivity(intent);
             finish();
-        }else if(id==R.id.download){
+        } else if (id == R.id.download) {
             Toast.makeText(getApplicationContext(), "下载资源",
                     Toast.LENGTH_SHORT).show();
-            Intent intent=new Intent(CourseNotice.this,DownloadActivity.class);
-            startActivity(intent);
-            finish();
-        }else if (id == R.id.about) {
+        } else if (id == R.id.about) {
             Toast.makeText(getApplicationContext(), "关于",
                     Toast.LENGTH_SHORT).show();
-            Intent intent = new Intent(CourseNotice.this, About.class);
+            Intent intent = new Intent(DownloadActivity.this, About.class);
             startActivity(intent);
             finish();
         } else if (id == R.id.logout) {
@@ -148,7 +219,7 @@ public class CourseNotice extends AppCompatActivity
             exitApp();
         }
 
-        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.coursenotice_layout);
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.download_layout);
         drawer.closeDrawer(GravityCompat.START);
         return true;
     }
@@ -159,7 +230,7 @@ public class CourseNotice extends AppCompatActivity
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         // 点击“确认”后的操作
-                        ExitApplication.getInstance().exit(CourseNotice.this);
+                        ExitApplication.getInstance().exit(DownloadActivity.this);
                     }
                 }).setNegativeButton("取消", new DialogInterface.OnClickListener() {
                     @Override
@@ -181,7 +252,7 @@ public class CourseNotice extends AppCompatActivity
                         editor.putBoolean(autoLogin_info, false);
                         editor.commit();
                         finish();
-                        Intent intent = new Intent(CourseNotice.this, LoginActivity.class);
+                        Intent intent = new Intent(DownloadActivity.this, LoginActivity.class);
                         startActivity(intent);
                     }
                 }).setNegativeButton("取消", new DialogInterface.OnClickListener() {
@@ -201,7 +272,7 @@ public class CourseNotice extends AppCompatActivity
                 Toast.makeText(getApplicationContext(), "再按一次退出程序", Toast.LENGTH_SHORT).show();
                 exitTime = System.currentTimeMillis();
             } else {
-                ExitApplication.getInstance().exit(CourseNotice.this);
+                ExitApplication.getInstance().exit(this);
             }
             return true;
         }
@@ -224,25 +295,31 @@ public class CourseNotice extends AppCompatActivity
         }
     }
 
-    public void showNotice() {
-        final String user = Utils.getUserList(CourseNotice.this).get(0).getId();
-        final ArrayList<String> arrayList = Utils.getClassNotice(user);
-        String s = "";
-        for (int i = 0; i < arrayList.size(); i++) {
-            s += arrayList.get(i) + "\n";
+    public String[] getTeacherList(String user) {
+        String[] getResult;
+        HashSet<String> result = new HashSet<String>();
+        ArrayList<String> temp = Utils.getClassTable(user);
+        for (int i = 0; i < temp.size(); i++) {
+            String[] courseStrings = temp.get(i).split(" ");
+            if (courseStrings.length == 7) {
+                result.add(courseStrings[6]);
+            }
         }
-        notice_textView.setText(s);
+
+        getResult = new String[result.size()];
+        int index = 0;
+        for (Iterator it = result.iterator(); it.hasNext(); ) {
+            getResult[index] = it.next().toString();
+            index++;
+        }
+        return getResult;
     }
 
-    public void updateNotice() {
-        final String user = Utils.getUserList(CourseNotice.this).get(0).getId();
-        final String pwd = Utils.getUserList(CourseNotice.this).get(0).getPwd();
-        final Thread thread = new Thread(new Runnable() {
+    public void showResList(final String TID){
+        Thread thread=new Thread(new Runnable() {
             @Override
             public void run() {
-
-                String strURL = WEBURL+"stulogin?LoginName=" +
-                        user + "&" + "LoginPassWord=" + pwd + "&" + "Request=Notice";
+                String strURL = WEBURL+"DownloadServlet"+"?TID="+TID;
                 URL url = null;
                 try {
                     url = new URL(strURL);
@@ -252,39 +329,68 @@ public class CourseNotice extends AppCompatActivity
                     httpURLConnection.setReadTimeout(5000);
                     InputStreamReader in = new InputStreamReader(httpURLConnection.getInputStream());
                     BufferedReader bufferedReader = new BufferedReader(in);
-                    ArrayList<String> temp_result = new ArrayList<String>();
+                    ArrayList<String> temp_result =new ArrayList<String>();
                     String readLine = null;
                     while ((readLine = bufferedReader.readLine()) != null) {
                         temp_result.add(readLine);
                     }
-                    Utils.saveClassNotice(user, temp_result);
                     in.close();
                     httpURLConnection.disconnect();
-                    final ArrayList<String> result = Utils.getClassNotice(user);
-                    CourseNotice.this.runOnUiThread(new Runnable() {
+                    String[] ts=new String[temp_result.size()];
+                    for(int i=0;i<temp_result.size();i++){
+                        ts[i]=temp_result.get(i);
+                    }
+                    final String[] resList=ts;
+                    DownloadActivity.this.runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            if (result.get(0)!=null) {
-                                String s = "";
-                                for (int i = 0; i < result.size(); i++) {
-                                    s += result.get(i) + "\n";
-                                }
-                                notice_textView.setText(s);
-                            } else {
-                                Toast.makeText(CourseNotice.this, "请求失败", Toast.LENGTH_SHORT).show();
-                            }
+                            inint_d_Spinner(resList);
                         }
                     });
-                } catch (Exception e) {
+                }catch (Exception e){
                     e.printStackTrace();
                 }
             }
         });
-        try {
-            thread.start();
-            thread.join();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        thread.start();
+    }
+
+    public void downRes(final String TID,final String RES){
+        Thread thread=new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String strURL = WEBURL+"doDownloadServlet"+"?TID="+TID+"&RESNAME="+RES;
+                URL url = null;
+                try {
+                    url = new URL(strURL);
+                    HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
+                    httpURLConnection.setConnectTimeout(8000);
+                    httpURLConnection.setRequestMethod("GET");
+                    httpURLConnection.setReadTimeout(5000);
+                    InputStream in = httpURLConnection.getInputStream();
+                    String DIR = "/sdcard/bysjRes/";
+                    File file=new File(DIR);
+                    if (!file.exists() && !file.isDirectory()) {
+                        // 创建目录
+                        file.mkdir();
+                    }
+                    String filename=RES.substring(RES.lastIndexOf("\\")+1);
+                    Log.i("download", filename);
+                    FileOutputStream out = new FileOutputStream(DIR  + filename);
+                    byte buffer[] = new byte[1024];
+                    int len = 0;
+                    while ((len=in.read(buffer))>0){
+                        out.write(buffer,0,len);
+                    }
+                    in.close();
+                    out.close();
+                    httpURLConnection.disconnect();
+
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
+            }
+        });
+        thread.start();
     }
 }

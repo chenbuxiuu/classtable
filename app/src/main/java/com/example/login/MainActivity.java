@@ -13,25 +13,29 @@ import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
+import android.view.View;
+import android.view.View.OnClickListener;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.LinearLayout;
-import android.view.ViewGroup.LayoutParams;
-import android.widget.TextView;
 import android.widget.Toast;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.TimeZone;
+
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
     private SharedPreferences sp;
-    private static String Checkbox_info="checkbox";
+    private static String app_info="app_info";
     private static String autoLogin_info="autoLogin";
     private Button[] button;
-    private static String[] s={"软件工程","张程","1,2,4,5","日","9-12","A5103"};
+    private Button week_set;
+    private ArrayList<String> classTable;
+//    private static String s="18011130 入侵检测原理与技术 12 一 9-12 A主0410";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,12 +51,20 @@ public class MainActivity extends AppCompatActivity
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
 
-        setTranslucentForDrawerLayout(this, drawer);
-        sp=this.getSharedPreferences(Checkbox_info, Context.MODE_APPEND);
+        classTable= Utils.getClassTable(Utils.getUserList(MainActivity.this).get(0).getId());
         initButton();
-        showClassTable(s);
-        ExitApplication.getInstance().addActivity(this);
 
+        setTranslucentForDrawerLayout(this, drawer);
+        sp=this.getSharedPreferences(app_info, Context.MODE_APPEND);
+
+        String myWeek=sp.getString("week","1");
+        week_set=(Button)findViewById(R.id.week_set);
+        week_set.setText(myWeek);
+        for(int i=0;i<classTable.size();i++){
+            showClassTable(myWeek,classTable.get(i));
+        }
+        setWeekListener();
+        ExitApplication.getInstance().addActivity(this);
     }
 
     public void initButton(){
@@ -69,8 +81,41 @@ public class MainActivity extends AppCompatActivity
 
         for(int i=0;i<42;i++){
             button[i]=(Button)findViewById(id[i]);
-            button[i].setText(String.valueOf(i));
+
+//            button[i].setText(String.valueOf(i));
         }
+    }
+
+    public void setWeekListener(){
+        week_set.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String[] s=new String[20];
+                for(int i=0;i<20;i++){
+                    s[i]=String.valueOf(i+1);
+                }
+//                Toast.makeText(MainActivity.this,"设置周数",Toast.LENGTH_SHORT).show();
+                int choosedWeek=Integer.parseInt(sp.getString("week","1"))-1;
+                new AlertDialog.Builder(MainActivity.this).setTitle("选择周数").setSingleChoiceItems(s,choosedWeek,
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int which) {
+                                //记录当前周数
+                                saveWeekInfo("week",String.valueOf(which+1));
+                                //清空当前课表
+                                for(int i=0;i<42;i++){
+                                    button[i].setText("");
+                                }
+                                //刷新课程
+                                week_set.setText(String.valueOf(which+1));
+                                for(int i=0;i<classTable.size();i++){
+                                    showClassTable(String.valueOf(which+1),classTable.get(i));
+                                }
+                                dialog.dismiss();
+                            }
+                        }).show();
+
+            }
+        });
     }
     @Override
     public void onBackPressed() {
@@ -117,6 +162,18 @@ public class MainActivity extends AppCompatActivity
             Toast.makeText(getApplicationContext(), "课程通知",
                     Toast.LENGTH_SHORT).show();
             Intent intent=new Intent(MainActivity.this,CourseNotice.class);
+            startActivity(intent);
+            finish();
+        }else if(id==R.id.upload){
+            Toast.makeText(getApplicationContext(), "上传作业",
+                    Toast.LENGTH_SHORT).show();
+            Intent intent=new Intent(MainActivity.this,UploadActivity.class);
+            startActivity(intent);
+            finish();
+        }else if(id==R.id.download){
+            Toast.makeText(getApplicationContext(), "下载资源",
+                    Toast.LENGTH_SHORT).show();
+            Intent intent=new Intent(MainActivity.this,DownloadActivity.class);
             startActivity(intent);
             finish();
         }else if (id == R.id.about) {
@@ -209,13 +266,20 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    public void showClassTable(String[] courseStrings){
-        String cname=courseStrings[0];
-        String ct=courseStrings[1];
+    public void showClassTable(String week,String str){
+        String[] courseStrings=str.split(" ");
+        String cid=courseStrings[0];
+        String cname=courseStrings[1];
         String cweek=courseStrings[2];
         String cday=courseStrings[3];
         String ctime=courseStrings[4];
         String caddr=courseStrings[5];
+        String ct="";
+//        Log.i("length",String.valueOf(courseStrings.length));
+        if(courseStrings.length==7){
+            ct=courseStrings[6];
+        }
+
         int d=0;
         switch (cday){
             case "一":d=1;
@@ -248,9 +312,42 @@ public class MainActivity extends AppCompatActivity
         else {
             string=cname;
         }
-        for(int i=b;i<e;i++){
-            button[i].setText(string);
+        String[] iweek=cweek.split(",");
+        boolean flag=false;
+        for(int i=0;i<iweek.length;i++){
+            if(iweek[i].equals(week)){
+                flag=true;
+                break;
+            }
         }
+        for(int i=b;i<e;i++){
+            if(flag){
+                button[i].setText(string);
+                String[] ts=new String[5];
+                ts[0]="课程名  "+cname;
+                ts[1]="上课周数 "+cweek;
+                ts[2]="节数   "+cday+" "+ctime;
+                ts[3]="地点   "+caddr;
+                ts[4]="老师   "+ct;
+                final String[] cs=ts;
+                button[i].setOnClickListener(new OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        new AlertDialog.Builder(MainActivity.this).setTitle("课程信息").setItems(
+                                cs, null).show();
+//                        Toast.makeText(MainActivity.this,cs, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        }
+
+    }
+
+    public void saveWeekInfo(String key, String value) {
+        SharedPreferences.Editor editor = sp.edit();
+        editor.remove(key);
+        editor.putString(key, value);
+        editor.commit();
     }
 
 }
